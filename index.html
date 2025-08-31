@@ -61,17 +61,17 @@
             'ymobile': { name: 'ワイモバイル', maxLines: 5, reward: 3000 },
             'uq': { name: 'UQモバイル', maxLines: 3, reward: 3000 },
             'biglobe': { name: 'BIGLOBEモバイル', maxLines: 2, reward: 3000 },
-            'kakuyasu_sim': { name: '格安SIM', maxLines: 0, reward: 0 }
+            'other': { name: 'その他(格安SIM)', maxLines: 0, reward: 0 }
         };
 
         // Wi-Fi設定
         // max: MNP報酬計算で使用する最大契約数（実際のキャンペーン上限）
         // reward: 1契約あたりの報酬額
         const WIFI_CONFIG = {
-            'softbank_ymobile': { name: 'ソフトバンク・ワイモバイル', max: 1, reward: 7000 },
-            'uq': { name: 'UQモバイル', max: 1, reward: 7000 },
             'docomo': { name: 'NTTドコモ', max: 1, reward: 7000 },
-            'au': { name: 'au', max: 0, reward: 0 } 
+            'au': { name: 'au', max: 0, reward: 0 } ,
+            'softbank_ymobile': { name: 'ソフトバンク・ワイモバイル', max: 1, reward: 7000 },
+            'uq': { name: 'UQモバイル', max: 1, reward: 7000 }
         };
 
         // フォーム入力用の上限設定（実際に持っている回線数入力用）
@@ -85,7 +85,7 @@
                 'ymobile': 10, 
                 'uq': 10,
                 'biglobe': 10,
-                'kakuyasu_sim': 10
+                'other': 10
             },
             // Wi-Fi入力フォームの上限値
             wifi: {
