@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MNP収益シミュレーター</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#3B82F6',
+                        'success': '#10B981',
+                        'warning': '#F59E0B',
+                        'danger': '#EF4444'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-shadow {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .result-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .animate-pulse-slow {
+            animation: pulse 3s infinite;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .slide-in {
+            animation: slideIn 0.5s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // キャリア設定（正式名称）
+        // maxLines: MNP報酬計算で使用する最大回線数（実際のキャンペーン上限）
+        // reward: 1回線あたりの報酬額
+        const CARRIERS = {
+            'docomo': { name: 'NTTドコモ', maxLines: 2, reward: 3000 },
+            'au': { name: 'au', maxLines: 0, reward: 0 },
+            'softbank': { name: 'ソフトバンク', maxLines: 5, reward: 3000 },
+            'ymobile': { name: 'ワイモバイル', maxLines: 5, reward: 3000 },
+            'uq': { name: 'UQモバイル', maxLines: 3, reward: 3000 },
+            'biglobe': { name: 'BIGLOBEモバイル', maxLines: 2, reward: 3000 },
+            'kakuyasu_sim': { name: '格安SIM', maxLines: 0, reward: 0 }
+        };
+
+        // Wi-Fi設定
+        // max: MNP報酬計算で使用する最大契約数（実際のキャンペーン上限）
+        // reward: 1契約あたりの報酬額
+        const WIFI_CONFIG = {
+            'softbank_ymobile': { name: 'ソフトバンク・ワイモバイル', max: 1, reward: 7000 },
+            'uq': { name: 'UQモバイル', max: 1, reward: 7000 },
+            'docomo': { name: 'NTTドコモ', max: 1, reward: 7000 },
+            'au': { name: 'au', max: 0, reward: 0 } 
+        };
+
+        // フォーム入力用の上限設定（実際に持っている回線数入力用）
+        // ここの値を変更すると、編集フォームの入力上限が変わります（計算には影響しません）
+        const FORM_LIMITS = {
+            // 回線入力フォームの上限値
+            lines: {
+                'docomo': 10,
+                'au': 10,
+                'softbank': 10,
+                'ymobile': 10, 
+                'uq': 10,
+                'biglobe': 10,
+                'kakuyasu_sim': 10
+            },
+            // Wi-Fi入力フォームの上限値
+            wifi: {
+                'docomo': 5,
+                'au': 5,
+                'softbank_ymobile': 5,
+                'uq': 5
+            }
+        };
+
+        // メインアプリケーション
+        const App = () => {
+            const [currentLines, setCurrentLines] = useState({});
+            const [wifiContracts, setWifiContracts] = useState({});
+            const [simulationResult, setSimulationResult] = useState(null);
+            const [showForm, setShowForm] = useState(false);
+            const [showWifiForm, setShowWifiForm] = useState(false);
+
+            // 収益計算
+            const calculateEarnings = () => {
+                let totalLineEarnings = 0;
+                let totalWifiEarnings = 0;
+                let lineDetails = [];
+                let wifiDetails = [];
+
+                // 回線収益計算
+                Object.keys(CARRIERS).forEach(carrierId => {
+                    const carrier = CARRIERS[carrierId];
+                    const currentCount = currentLines[carrierId] || 0;
+                    const availableLines = Math.max(0, carrier.maxLines - currentCount);
+                    const earnings = availableLines * carrier.reward;
+                    
+                    if (availableLines > 0) {
+                        totalLineEarnings += earnings;
+                        lineDetails.push({
+                            name: carrier.name,
+                            available: availableLines,
+                            reward: carrier.reward,
+                            earnings: earnings
+                        });
+                    }
+                });
+
+                // Wi-Fi収益計算
+                Object.keys(WIFI_CONFIG).forEach(wifiId => {
+                    const wifi = WIFI_CONFIG[wifiId];
+                    const currentCount = wifiContracts[wifiId] || 0;
+                    const availableContracts = Math.max(0, wifi.max - currentCount);
+                    const earnings = availableContracts * wifi.reward;
+                    
+                    if (availableContracts > 0) {
+                        totalWifiEarnings += earnings;
+                        wifiDetails.push({
+                            name: wifi.name + ' Wi-Fi',
+                            available: availableContracts,
+                            reward: wifi.reward,
+                            earnings: earnings
+                        });
+                    }
+                });
+
+                setSimulationResult({
+                    totalLineEarnings,
+                    totalWifiEarnings,
+                    total: totalLineEarnings + totalWifiEarnings,
+                    lineDetails,
+                    wifiDetails,
+                    calculatedAt: new Date().toLocaleString('ja-JP')
+                });
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    {/* ヘッダー */}
+                    <Header />
+
+                    {/* メインコンテンツ */}
+                    <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+                        {/* 概要カード */}
+                        <OverviewCard />
+
+                        {/* 現在の契約状況 */}
+                        <CurrentContractsCard 
+                            currentLines={currentLines}
+                            wifiContracts={wifiContracts}
+                            onShowForm={() => setShowForm(true)}
+                            onShowWifiForm={() => setShowWifiForm(true)}
+                        />
+
+                        {/* シミュレーションボタン */}
+                        <div className="text-center">
+                            <button
+                                onClick={calculateEarnings}
+                                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-4 rounded-lg text-lg font-bold shadow-lg transform hover:scale-105 transition-all duration-200"
+                            >
+                                <i className="fas fa-calculator mr-2"></i>
+                                収益を計算する
+                            </button>
+                        </div>
+
+                        {/* シミュレーション結果 */}
+                        {simulationResult && (
+                            <SimulationResult result={simulationResult} />
+                        )}
+                    </div>
+
+                    {/* 回線情報入力フォーム */}
+                    {showForm && (
+                        <LineInputForm
+                            currentLines={currentLines}
+                            onSave={(data) => {
+                                setCurrentLines(data);
+                                setSimulationResult(null); // ← 結果をクリア
+                            }}
+                            onClose={() => setShowForm(false)}
+                        />
+                    )}
+
+                    {/* Wi-Fi情報入力フォーム */}
+                    {showWifiForm && (
+                        <WifiInputForm
+                            wifiContracts={wifiContracts}
+                            onSave={(data) => {
+                                setWifiContracts(data);
+                                setSimulationResult(null); // ← 結果をクリア
+                            }}
+                            onClose={() => setShowWifiForm(false)}
+                        />
+                    )}
+                </div>
+            );
+        };
+
+        // ヘッダーコンポーネント
+        const Header = () => (
+            <header className="gradient-bg shadow-lg">
+                <div className="max-w-4xl mx-auto px-4 py-6">
+                    <div className="text-center">
+                        <h1 className="text-2xl md:text-4xl font-bold text-white mb-2 leading-tight">
+                            <i className="fas fa-mobile-alt mr-3"></i>
+                            MNP収益シミュレーター
+                        </h1>
+                        <p className="text-blue-100 text-base md:text-lg">
+                            携帯乗り換えでどれだけ稼げるかを簡単計算
+                        </p>
+                    </div>
+                </div>
+            </header>
+        );
+
+        // 概要カードコンポーネント
+        const OverviewCard = () => (
+            <div className="bg-white rounded-lg card-shadow p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">
+                    <i className="fas fa-info-circle text-blue-600 mr-2"></i>
+                    シミュレーターの使い方
+                </h2>
+                <div className="grid md:grid-cols-3 gap-4 text-sm text-gray-600">
+                    <div className="text-center p-4 bg-blue-50 rounded-lg">
+                        <div className="text-2xl text-blue-600 mb-2">
+                            <i className="fas fa-edit"></i>
+                        </div>
+                        <h3 className="font-semibold text-gray-800 mb-2">1. 契約状況を入力</h3>
+                        <p>現在の回線・Wi-Fi契約数を入力してください。</p>
+                    </div>
+                    <div className="text-center p-4 bg-green-50 rounded-lg">
+                        <div className="text-2xl text-green-600 mb-2">
+                            <i className="fas fa-calculator"></i>
+                        </div>
+                        <h3 className="font-semibold text-gray-800 mb-2">2. 収益を計算</h3>
+                        <p>ボタンを押して追加契約可能な収益を計算します。</p>
+                    </div>
+                    <div className="text-center p-4 bg-purple-50 rounded-lg">
+                        <div className="text-2xl text-purple-600 mb-2">
+                            <i className="fas fa-chart-line"></i>
+                        </div>
+                        <h3 className="font-semibold text-gray-800 mb-2">3. 結果を確認</h3>
+                        <p>獲得可能な総報酬とその内訳を確認できます。</p>
+                    </div>
+                </div>
+            </div>
+        );
+
+        // 現在の契約状況カード
+        const CurrentContractsCard = ({ currentLines, wifiContracts, onShowForm, onShowWifiForm }) => {
+            const totalLines = Object.values(currentLines).reduce((sum, count) => sum + count, 0);
+            const totalWifi = Object.values(wifiContracts).reduce((sum, count) => sum + count, 0);
+
+            return (
+                <div className="bg-white rounded-lg card-shadow p-6">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-bold text-gray-900">
+                            <i className="fas fa-sim-card text-green-600 mr-2"></i>
+                            現在の契約状況
+                        </h2>
+                    </div>
+                    
+                    <div className="grid md:grid-cols-2 gap-6">
+                        {/* 回線契約 */}
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                            <div className="flex justify-between items-center mb-3">
+                                <h3 className="font-semibold text-gray-800">携帯回線契約</h3>
+                                <button
+                                    onClick={onShowForm}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
+                                >
+                                    <i className="fas fa-edit mr-1"></i>編集
+                                </button>
+                            </div>
+                            <div className="text-center">
+                                <div className="text-3xl font-bold text-blue-600 mb-1">
+                                    {totalLines}
+                                </div>
+                                <p className="text-sm text-gray-600">契約中の回線数</p>
+                            </div>
+                        </div>
+
+                        {/* Wi-Fi契約 */}
+                        <div className="bg-green-50 p-4 rounded-lg">
+                            <div className="flex justify-between items-center mb-3">
+                                <h3 className="font-semibold text-gray-800">Wi-Fi契約</h3>
+                                <button
+                                    onClick={onShowWifiForm}
+                                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
+                                >
+                                    <i className="fas fa-edit mr-1"></i>編集
+                                </button>
+                            </div>
+                            <div className="text-center">
+                                <div className="text-3xl font-bold text-green-600 mb-1">
+                                    {totalWifi}
+                                </div>
+                                <p className="text-sm text-gray-600">契約中のWi-Fi数</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // シミュレーション結果コンポーネント
+        const SimulationResult = ({ result }) => (
+            <div className="bg-white rounded-lg card-shadow overflow-hidden slide-in">
+                <div className="result-card p-6 text-white text-center">
+                    <h2 className="text-2xl font-bold mb-2">
+                        <i className="fas fa-chart-line mr-2"></i>
+                        シミュレーション結果
+                    </h2>
+                    <div className="text-4xl md:text-5xl font-bold mb-2">
+                        ¥{result.total.toLocaleString()}
+                    </div>
+                    <p className="text-lg opacity-90">獲得可能な総報酬</p>
+                    <p className="text-sm opacity-75 mt-2">計算日時: {result.calculatedAt}</p>
+                </div>
+                
+                <div className="p-6">
+                    <h3 className="font-bold text-gray-900 mb-4">詳細内訳</h3>
+                    
+                    {result.total === 0 ? (
+                        <div className="text-center py-8 text-gray-500">
+                            <i className="fas fa-check-circle text-4xl mb-3"></i>
+                            <p className="text-lg font-medium">すべての契約枠を使用済みです</p>
+                            <p className="text-sm">追加で契約可能な回線・Wi-Fiがありません</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {/* 携帯回線合計 */}
+                            {result.totalLineEarnings > 0 && (
+                                <div className="p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <h4 className="font-semibold text-gray-800">携帯回線</h4>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-2xl font-bold text-blue-600">
+                                                ¥{result.totalLineEarnings.toLocaleString()}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Wi-Fi合計 */}
+                            {result.totalWifiEarnings > 0 && (
+                                <div className="p-4 bg-green-50 rounded-lg border-l-4 border-green-500">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <h4 className="font-semibold text-gray-800">Wi-Fi</h4>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-2xl font-bold text-green-600">
+                                                ¥{result.totalWifiEarnings.toLocaleString()}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* 注意事項 */}
+                    <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <h4 className="font-semibold text-yellow-800 mb-2">
+                            <i className="fas fa-exclamation-triangle mr-2"></i>
+                            重要な注意事項
+                        </h4>
+                        <ul className="text-sm text-yellow-700 space-y-1">
+                            <li>• この金額はシミュレーション結果であり、実際の報酬を保証するものではありません</li>
+                            <li>• キャンペーン内容や条件は予告なく変更される場合があります</li>
+                            <li>• 契約前には必ず最新の公式情報をご確認ください</li>
+                        </ul>
+                    </div>
+
+                    {/* 将来の機能拡張エリア */}
+                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <h4 className="font-semibold text-blue-800 mb-2">
+                            <i className="fas fa-link mr-2"></i>
+                            お役立ちリンク
+                        </h4>
+                        <div className="text-sm text-blue-700">
+                            <p>キャンペーン情報や申込サイトへのリンクを今後追加予定</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+
+        // 回線情報入力フォーム
+        const LineInputForm = ({ currentLines, onSave, onClose }) => {
+            const [formData, setFormData] = useState({});
+
+            useEffect(() => {
+                const initialData = {};
+                Object.keys(CARRIERS).forEach(carrierId => {
+                    initialData[carrierId] = currentLines[carrierId] || 0;
+                });
+                setFormData(initialData);
+            }, [currentLines]);
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onSave(formData);
+                onClose();
+            };
+
+            const handleChange = (carrierId, value) => {
+                // 空文字の場合は0、数値以外は無視
+                if (value === '') {
+                    setFormData(prev => ({ ...prev, [carrierId]: 0 }));
+                    return;
+                }
+                // 先頭0を削除してから数値変換
+                const cleanValue = value.replace(/^0+/, '') || '0';
+                const numValue = Math.min(Math.max(0, parseInt(cleanValue) || 0), FORM_LIMITS.lines[carrierId]);
+                setFormData(prev => ({ ...prev, [carrierId]: numValue }));
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden slide-in">
+                        <div className="flex items-center justify-between p-4 border-b">
+                            <h2 className="text-xl font-semibold">現在の回線契約数</h2>
+                            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+                                <i className="fas fa-times text-xl"></i>
+                            </button>
+                        </div>
+                        
+                        <form onSubmit={handleSubmit} className="p-4 space-y-4 overflow-y-auto max-h-[calc(90vh-120px)]">
+                            {Object.keys(CARRIERS).map(carrierId => {
+                                const carrier = CARRIERS[carrierId];
+                                return (
+                                    <div key={carrierId} className="space-y-2">
+                                        <label className="block text-sm font-medium text-gray-700">
+                                            {carrier.name}
+                                        </label>
+                                        <div className="flex items-center space-x-2">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max={FORM_LIMITS.lines[carrierId]}
+                                                value={formData[carrierId] || 0}
+                                                onChange={(e) => handleChange(carrierId, e.target.value)}
+                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                style={{ fontSize: '16px' }}
+                                            />
+                                            <span className="text-sm text-gray-600 w-8">回線</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            
+                            <div className="flex space-x-3 pt-4">
+                                <button
+                                    type="submit"
+                                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition-colors"
+                                >
+                                    保存
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-3 rounded-lg font-medium transition-colors"
+                                >
+                                    キャンセル
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // Wi-Fi情報入力フォーム
+        const WifiInputForm = ({ wifiContracts, onSave, onClose }) => {
+            const [formData, setFormData] = useState({});
+
+            useEffect(() => {
+                const initialData = {};
+                Object.keys(WIFI_CONFIG).forEach(wifiId => {
+                    initialData[wifiId] = wifiContracts[wifiId] || 0;
+                });
+                setFormData(initialData);
+            }, [wifiContracts]);
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onSave(formData);
+                onClose();
+            };
+
+            const handleChange = (wifiId, value) => {
+                const numValue = Math.min(Math.max(0, parseInt(value) || 0), FORM_LIMITS.wifi[wifiId]);
+                setFormData(prev => ({ ...prev, [wifiId]: numValue }));
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg w-full max-w-md slide-in">
+                        <div className="flex items-center justify-between p-4 border-b">
+                            <h2 className="text-xl font-semibold">現在のWi-Fi契約数</h2>
+                            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+                                <i className="fas fa-times text-xl"></i>
+                            </button>
+                        </div>
+                        
+                        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+                            {Object.keys(WIFI_CONFIG).map(wifiId => {
+                                const wifi = WIFI_CONFIG[wifiId];
+                                return (
+                                    <div key={wifiId} className="space-y-2">
+                                        <label className="block text-sm font-medium text-gray-700">
+                                            {wifi.name}
+                                        </label>
+                                        <div className="flex items-center space-x-2">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max={FORM_LIMITS.wifi[wifiId]}
+                                                value={formData[wifiId] || 0}
+                                                onChange={(e) => handleChange(wifiId, e.target.value)}
+                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                style={{ fontSize: '16px' }}
+                                            />
+                                            <span className="text-sm text-gray-600 w-8">契約</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            
+                            <div className="flex space-x-3 pt-4">
+                                <button
+                                    type="submit"
+                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-medium transition-colors"
+                                >
+                                    保存
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-3 rounded-lg font-medium transition-colors"
+                                >
+                                    キャンセル
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // アプリケーションのレンダリング
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
