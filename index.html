@@ -462,15 +462,16 @@
                                             {carrier.name}
                                         </label>
                                         <div className="flex items-center space-x-2">
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                max={FORM_LIMITS.lines[carrierId]}
+                                            <select
                                                 value={formData[carrierId] || 0}
                                                 onChange={(e) => handleChange(carrierId, e.target.value)}
-                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
                                                 style={{ fontSize: '16px' }}
-                                            />
+                                                >
+                                                {Array.from({length: FORM_LIMITS.lines[carrierId] + 1}, (_, i) => (
+                                                    <option key={i} value={i}>{i}</option>
+                                                ))}
+                                            </select>
                                             <span className="text-sm text-gray-600 w-8">回線</span>
                                         </div>
                                     </div>
@@ -540,15 +541,16 @@
                                             {wifi.name}
                                         </label>
                                         <div className="flex items-center space-x-2">
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                max={FORM_LIMITS.wifi[wifiId]}
+                                            <select
                                                 value={formData[wifiId] || 0}
                                                 onChange={(e) => handleChange(wifiId, e.target.value)}
-                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
                                                 style={{ fontSize: '16px' }}
-                                            />
+                                                >
+                                                {Array.from({length: FORM_LIMITS.wifi[wifiId] + 1}, (_, i) => (
+                                                    <option key={i} value={i}>{i}</option>
+                                                ))}
+                                            </select>
                                             <span className="text-sm text-gray-600 w-8">契約</span>
                                         </div>
                                     </div>
